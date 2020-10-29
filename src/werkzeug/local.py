@@ -1,17 +1,9 @@
 import copy
+import typing as t
 from functools import update_wrapper
-from typing import Any
-from typing import Callable
-from typing import List
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Union
 
+from .types import WSGIEnvironment
 from .wsgi import ClosingIterator
-from werkzeug.types import WSGIEnvironment
-
-if TYPE_CHECKING:
-    from werkzeug.debug.console import HTMLStringO, _InteractiveConsole  # noqa: F401
 
 # Each thread has its own greenlet, use that as the identifier for the
 # context. If greenlets are not available fall back to the current
@@ -22,7 +14,7 @@ except ImportError:
     from threading import get_ident
 
 
-def release_local(local: Union["LocalStack", "Local"]) -> None:
+def release_local(local: t.Union["LocalStack", "Local"]) -> None:
     """Releases the contents of the local for the current context.
     This makes it possible to use locals without a manager.
 
@@ -62,15 +54,13 @@ class Local:
     def __release_local__(self) -> None:
         self.__storage__.pop(self.__ident_func__(), None)
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> t.Any:
         try:
             return self.__storage__[self.__ident_func__()][name]
         except KeyError:
             raise AttributeError(name)
 
-    def __setattr__(
-        self, name: str, value: Union["_InteractiveConsole", "HTMLStringO", int]
-    ) -> None:
+    def __setattr__(self, name: str, value: t.Any) -> None:
         ident = self.__ident_func__()
         storage = self.__storage__
         try:
@@ -135,15 +125,15 @@ class LocalStack:
 
         return LocalProxy(_lookup)
 
-    def push(self, obj: Any) -> Any:
+    def push(self, obj: t.Any) -> t.Any:
         """Pushes a new item to the stack"""
         rv = getattr(self._local, "stack", None)
         if rv is None:
-            self._local.stack = rv = []  # type: ignore
+            self._local.stack = rv = []
         rv.append(obj)
         return rv
 
-    def pop(self) -> Any:
+    def pop(self) -> t.Any:
         """Removes the topmost item from the stack, will return the
         old value or `None` if the stack was already empty.
         """
@@ -157,7 +147,7 @@ class LocalStack:
             return stack.pop()
 
     @property
-    def top(self) -> Any:
+    def top(self) -> t.Any:
         """The topmost item on the stack.  If the stack is empty,
         `None` is returned.
         """
@@ -186,8 +176,8 @@ class LocalManager:
 
     def __init__(
         self,
-        locals: Optional[List[Union[Local, LocalStack]]] = None,
-        ident_func: Optional[Callable] = None,
+        locals: t.Optional[t.List[t.Union[Local, LocalStack]]] = None,
+        ident_func: t.Optional[t.Callable] = None,
     ) -> None:
         if locals is None:
             self.locals = []
@@ -202,7 +192,7 @@ class LocalManager:
         else:
             self.ident_func = get_ident
 
-    def get_ident(self) -> Any:
+    def get_ident(self) -> t.Any:
         """Return the context identifier the local objects use internally for
         this context.  You cannot override this method to change the behavior
         but use it to link other context local objects (such as SQLAlchemy's
@@ -223,8 +213,8 @@ class LocalManager:
             release_local(local)
 
     def make_middleware(
-        self, app: Callable[[Any, Any], Any]
-    ) -> Callable[[WSGIEnvironment, Any], ClosingIterator]:
+        self, app: t.Callable[[t.Any, t.Any], t.Any]
+    ) -> t.Callable[[WSGIEnvironment, t.Any], ClosingIterator]:
         """Wrap a WSGI application so that cleaning up happens after
         request end.
         """
@@ -234,7 +224,7 @@ class LocalManager:
 
         return application
 
-    def middleware(self, func: Callable) -> Callable:
+    def middleware(self, func: t.Callable) -> t.Callable:
         """Like `make_middleware` but for decorating functions.
 
         Example usage::
@@ -292,7 +282,9 @@ class LocalProxy:
     __slots__ = ("__local", "__dict__", "__name__", "__wrapped__")
 
     def __init__(
-        self, local: Union[Any, "LocalProxy", "LocalStack"], name: Optional[str] = None,
+        self,
+        local: t.Union[t.Any, "LocalProxy", "LocalStack"],
+        name: t.Optional[str] = None,
     ) -> None:
         object.__setattr__(self, "_LocalProxy__local", local)
         object.__setattr__(self, "__name__", name)
@@ -313,13 +305,6 @@ class LocalProxy:
         except AttributeError:
             raise RuntimeError(f"no object bound to {self.__name__}")
 
-    @property
-    def __dict__(self):
-        try:
-            return self._get_current_object().__dict__
-        except RuntimeError:
-            raise AttributeError("__dict__")
-
     def __repr__(self) -> str:
         try:
             obj = self._get_current_object()
@@ -339,12 +324,12 @@ class LocalProxy:
         except RuntimeError:
             return []
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> t.Any:
         if name == "__members__":
             return dir(self._get_current_object())
         return getattr(self._get_current_object(), name)
 
-    def __setitem__(self, key: Any, value: Any) -> None:
+    def __setitem__(self, key: t.Any, value: t.Any) -> None:
         self._get_current_object()[key] = value  # type: ignore
 
     def __delitem__(self, key):
